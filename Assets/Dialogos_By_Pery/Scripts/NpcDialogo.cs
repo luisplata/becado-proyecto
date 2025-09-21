@@ -1,4 +1,6 @@
+using System;
 using UnityEngine;
+using System.Collections;
 
 public class NpcDialogo : MonoBehaviour
 {
@@ -13,39 +15,110 @@ public class NpcDialogo : MonoBehaviour
     public AudioClip[] audioClips;
     public AudioSource audioSource;
 
-    public bool StartDialogue(Transform playerBase)
+    private bool directorFinished;
+    private Coroutine waitCoroutine;
+
+    public bool IsDialogueActive { get; private set; }
+
+    public Action OnDialogueFinished;
+
+    // 🚀 Inicia el diálogo
+    public void StartDialogue(Transform playerBase)
     {
         canInteract = true;
+        IsDialogueActive = true;
         this.playerBase = playerBase;
-        Debug.Log("Iniciando diálogo con " + npcName);
+        currentLineIndex = 0; // siempre arranca desde el inicio
+
+        ShowLine();
+    }
+
+    // 🔹 Muestra la línea actual
+    private void ShowLine()
+    {
         if (currentLineIndex >= dialogLines.Length)
         {
             EndDialog();
-            return false;
+            return;
+        }
+
+        string line = dialogLines[currentLineIndex];
+        Debug.Log($"{npcName}: {line}");
+
+        // Mostrar en UI
+        UiManager.instance?.ShowDialogPanel(npcName, line);
+
+        // Animación
+        if (animator != null)
+            animator.SetInteger("step", currentLineIndex + 1);
+
+        // Director
+        if (playableDirectores.Length > 0 && currentLineIndex < playableDirectores.Length)
+        {
+            var director = playableDirectores[currentLineIndex];
+            directorFinished = false;
+            director.OnDirectorFinished += OnDirectorFinishedHandler;
+            director.Play();
         }
         else
         {
-            if (playableDirectores.Length > 0 && currentLineIndex <= playableDirectores.Length)
-            {
-                playableDirectores[currentLineIndex].Play();
-            }
-
-            Debug.Log(npcName + ": " + dialogLines[currentLineIndex]);
-            animator.SetInteger("step", currentLineIndex + 1);
-            if (audioSource.clip != null)
-            {
-                audioSource.Stop();
-            }
-
-            if (audioClips.Length > 0 && currentLineIndex < audioClips.Length && audioClips[currentLineIndex] != null)
-            {
-                audioSource.clip = audioClips[currentLineIndex];
-                audioSource.Play();
-            }
-
-            currentLineIndex++;
-            return true;
+            directorFinished = true;
         }
+
+        // Audio
+        if (audioClips.Length > 0 && currentLineIndex < audioClips.Length && audioClips[currentLineIndex] != null)
+        {
+            audioSource.clip = audioClips[currentLineIndex];
+            audioSource.Play();
+        }
+
+        // Cancelar cualquier corutina anterior antes de arrancar otra
+        if (waitCoroutine != null)
+            StopCoroutine(waitCoroutine);
+
+        waitCoroutine = StartCoroutine(WaitForLineEnd());
+    }
+
+    private void OnDirectorFinishedHandler(NpcDirectors director)
+    {
+        director.OnDirectorFinished -= OnDirectorFinishedHandler;
+        directorFinished = true;
+    }
+
+    private IEnumerator WaitForLineEnd()
+    {
+        while (true)
+        {
+            // Avance automático (terminaron audio y director)
+            bool autoAdvance = !audioSource.isPlaying && directorFinished;
+
+            if (autoAdvance)
+            {
+                NextLine();
+                yield break; // salir y limpiar corutina
+            }
+
+            yield return null;
+        }
+    }
+
+    // 🔹 Avanza a la siguiente línea
+    public void NextLine()
+    {
+        if (waitCoroutine != null)
+        {
+            StopCoroutine(waitCoroutine);
+            waitCoroutine = null;
+        }
+
+        if (audioSource.isPlaying)
+            audioSource.Stop();
+
+        foreach (var director in playableDirectores)
+            director.Stop();
+
+        currentLineIndex++;
+        ShowLine();
     }
 
     private void Update()
@@ -60,17 +133,38 @@ public class NpcDialogo : MonoBehaviour
     public void EndDialog()
     {
         Debug.Log("Diálogo terminado.");
-        animator.SetInteger("step", dialogLines.Length + 1);
-        currentLineIndex = 0; // Reinicia el diálogo
+        if (animator != null)
+            animator.SetInteger("step", dialogLines.Length + 1);
+
+        currentLineIndex = 0;
         canInteract = false;
+        IsDialogueActive = false;
+
         if (audioSource.isPlaying)
-        {
             audioSource.Stop();
-        }
 
         foreach (var director in playableDirectores)
-        {
             director.Stop();
+
+        if (waitCoroutine != null)
+        {
+            StopCoroutine(waitCoroutine);
+            waitCoroutine = null;
+        }
+
+        // 🔹 Ocultar panel UI
+        UiManager.instance?.HideDialogPanel();
+
+        // Avisar al PlayerDialogo
+        OnDialogueFinished?.Invoke();
+    }
+
+    // 🔹 Avance manual desde PlayerDialogo
+    public void ForceNextLine()
+    {
+        if (IsDialogueActive)
+        {
+            NextLine();
         }
     }
 }
