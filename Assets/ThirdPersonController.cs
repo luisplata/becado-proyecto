@@ -12,14 +12,17 @@ public class ThirdPersonController : MonoBehaviour
     public float cameraDistance = 4f;
     public float cameraHeight = 2f;
 
-    [Header("Aiming Settings")]
-    public float aimCameraDistance = 3f;
+    [Header("Movement Speeds")] 
+    public float speedRun = 5f;
+    public float speedAim = 2f;
+    public float speedNotAim = 1.2f;
+
+    [Header("Aiming Settings")] public float aimCameraDistance = 3f;
     public float aimCameraHeight = 2f;
     public float aimRotationSpeed = 10f;
     public float cameraSmooth = 6f;
 
-    [Header("Enemy Lock-On")]
-    public float lockOnRange = 12f;
+    [Header("Enemy Lock-On")] public float lockOnRange = 12f;
     private Transform currentEnemy;
     public float lockSmooth = 5f;
 
@@ -64,17 +67,16 @@ public class ThirdPersonController : MonoBehaviour
         bool isGrounded = controller.isGrounded;
 
         isRunning = Input.GetKey(KeyCode.LeftShift) && !isAiming;
-
-        float targetSpeed = isRunning ? 5f : (isAiming ? 2f : 1.2f);
+        float targetSpeed = isRunning ? speedRun : (isAiming ? speedAim : speedNotAim);
 
         speed = Mathf.Lerp(speed, targetSpeed, Time.deltaTime * 10f);
 
         if (animator != null)
         {
             animator.SetBool("isMoving", isMoving);
-            animator.SetBool("isGrounded", isGrounded);
+            // animator.SetBool("isGrounded", isGrounded);
             animator.SetBool("isRunning", isRunning);
-            animator.SetBool("isAiming", isAiming);
+            // animator.SetBool("isAiming", isAiming);
         }
 
         if (isMoving && !isAiming)
@@ -82,7 +84,8 @@ public class ThirdPersonController : MonoBehaviour
             controller.Move(moveDir * speed * Time.deltaTime);
 
             Quaternion targetRotation = Quaternion.LookRotation(moveDir);
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+            transform.rotation =
+                Quaternion.RotateTowards(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
 
         if (isAiming && currentEnemy != null)
@@ -134,7 +137,8 @@ public class ThirdPersonController : MonoBehaviour
             Vector3 desiredCamOffset = rotation * new Vector3(0, 0, -cameraDistance);
             Vector3 desiredCamPos = targetPos + desiredCamOffset;
 
-            cameraTransform.position = Vector3.Lerp(cameraTransform.position, desiredCamPos, Time.deltaTime * cameraSmooth);
+            cameraTransform.position =
+                Vector3.Lerp(cameraTransform.position, desiredCamPos, Time.deltaTime * cameraSmooth);
             cameraTransform.LookAt(targetPos);
         }
         else
@@ -148,7 +152,8 @@ public class ThirdPersonController : MonoBehaviour
             Vector3 offset = new Vector3(0, aimCameraHeight, -aimCameraDistance);
             Vector3 desiredCamPos = transform.position + transform.TransformDirection(offset);
 
-            cameraTransform.position = Vector3.Lerp(cameraTransform.position, desiredCamPos, Time.deltaTime * cameraSmooth);
+            cameraTransform.position =
+                Vector3.Lerp(cameraTransform.position, desiredCamPos, Time.deltaTime * cameraSmooth);
 
             // enfocar hacia el midpoint (plano horizontal)
             Vector3 lookDir = (midpoint - cameraTransform.position).normalized;
@@ -156,7 +161,8 @@ public class ThirdPersonController : MonoBehaviour
             if (lookDir.sqrMagnitude > 0.01f)
             {
                 Quaternion lookRot = Quaternion.LookRotation(lookDir, Vector3.up);
-                cameraTransform.rotation = Quaternion.Slerp(cameraTransform.rotation, lookRot, Time.deltaTime * lockSmooth);
+                cameraTransform.rotation =
+                    Quaternion.Slerp(cameraTransform.rotation, lookRot, Time.deltaTime * lockSmooth);
             }
         }
     }
@@ -180,15 +186,15 @@ public class ThirdPersonController : MonoBehaviour
             }
         }
     }
+
     public void FixBugCinematicBoludon()
     {
         animator.SetBool("isMoving", false);
     }
+
     void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, lockOnRange);
     }
 }
-
-
